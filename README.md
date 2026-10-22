@@ -1,4 +1,4 @@
-# Spatial Data Partitioning and Support Locality in Few-Shot Seismic Facies Segmentation
+# A Broad Assessment of Episodic Construction, Partitioning, and Transferability in Few-Shot Seismic Facies Segmentation
 
 
 The code evaluates four Few-Shot Semantic Segmentation (FSSS) architectures (PANet, PFENet, HSNet and ASNet) on
@@ -182,8 +182,8 @@ If you use this code, please cite our paper (reference to be updated upon public
 
 ```BibTeX
 @article{nunes2026seismicfsss,
-  author  = {Nunes, Gabriel Lima and Cunha, Caio Teles and Barreiros Jr., Willian and Ferreira, Renato and Teodoro, George},
-  title   = {Spatial Data Partitioning and Support Locality in Few-Shot Seismic Facies Segmentation},
+  author  = {Nunes, Gabriel Lima and Cunha, Caio Teles and de Souza, Matheus and Amarante, Gabriel and Barreiros Jr., Willian and Ferreira, Renato and Teodoro, George},
+  title   = {A Broad Assessment of Episodic Construction, Partitioning, and Transferability in Few-Shot Seismic Facies Segmentation},
   year    = {2026}
 }
 
