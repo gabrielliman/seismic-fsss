@@ -5,3 +5,6 @@ logs/
 *.npz
 *.h5
 *.sgy
+slurm_logs/
+results_novel/
+__pycache__/

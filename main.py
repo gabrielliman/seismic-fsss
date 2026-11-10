@@ -129,6 +129,12 @@ if __name__ == '__main__':
     parser.add_argument('--support_mode', type=str, default='same_slice', choices=['anywhere', 'same_slice', 'sssn'],
                         help='Support selection strategy: Anywhere, Same Slice or Siamese Support Selection Network')
     parser.add_argument('--eds_slices', type=int, default=5, help='Number of equally distant slices per orientation (EDS partitions only)')
+    parser.add_argument('--fold', type=int, default=-1,
+                        help='Novel-class protocol: train on the base classes of this fold and test on its held-out '
+                             'classes (Parihaka 0-2, Penobscot 0-3; see data/class_split.py). -1 = all classes (paper protocol)')
+    parser.add_argument('--val_classes', type=str, default='base', choices=['base', 'novel'],
+                        help='With --fold: classes used for validation/checkpoint selection. "base" never exposes '
+                             'novel classes before testing; "novel" follows the PASCAL-5i/iFSL practice')
     parser.add_argument('--way', type=int, default=1, help='N-way')
     parser.add_argument('--shot', type=int, default=1, help='K-shot (used at validation/test time; training is 1-shot)')
     parser.add_argument('--bsz', type=int, default=12, help='Batch size')

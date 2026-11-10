@@ -154,6 +154,13 @@ DATAPATH=/path/to/seismic LOGDIR=logs bash scripts/run_experiments.sh
 
 Evaluation logs are written as `eval_<test|transfer_*|full_*>_<k>shot.txt` inside each run directory.
 
+### Intra-survey novel-class protocol
+
+`--fold k` trains on the base facies of fold *k* and tests on its held-out facies within the same survey
+(Parihaka: 3 folds, Penobscot: 4 folds, 2 novel classes each). The default `--fold -1` keeps the paper protocol.
+Fold definitions, the rationale, the SLURM job tiers and the results collector are described in
+[docs/novel_class_protocol.md](docs/novel_class_protocol.md).
+
 ## Repository structure
 
 ```

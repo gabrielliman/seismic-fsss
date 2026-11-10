@@ -8,6 +8,7 @@ from data.full_parihaka import DatasetFullParihaka
 from data.penobscot import DatasetPenobscot
 from data.penobscot_eds import DatasetPenobscotEDS
 from data.full_penobscot import DatasetFullPenobscot
+from data.class_split import split_classes, survey_of, describe
 
 
 DATASETS = {
@@ -40,7 +41,7 @@ class FSCSDatasetModule(LightningDataModule):
         if self.args.benchmark.endswith('_eds'):
             kwargs['num_train'] = self.args.eds_slices
 
-        return DATASETS[self.args.benchmark](
+        dataset = DATASETS[self.args.benchmark](
             self.datapath,
             fold=0,
             transform=self.transform,
@@ -53,6 +54,22 @@ class FSCSDatasetModule(LightningDataModule):
             ensure_class_presence=True,
             **kwargs
         )
+        if self.args.fold >= 0:
+            self.restrict_classes(dataset, split)
+        return dataset
+
+    def restrict_classes(self, dataset, split):
+        """Novel-class protocol: episodes target only the base (train) or novel (test) classes of the fold."""
+        allowed = split_classes(self.args.benchmark, self.args.fold, split, self.args.val_classes)
+        missing = [c for c in allowed if c not in dataset.class_ids]
+        if missing:
+            # A class is absent from this split's region; it cannot be sampled as a target.
+            print(f'WARNING: classes {missing} have no patches in the {split} split of {self.args.benchmark}')
+        dataset.class_ids = [c for c in dataset.class_ids if c in allowed]
+        if not dataset.class_ids:
+            raise RuntimeError(f'No {split} classes left for {self.args.benchmark} fold {self.args.fold}')
+        print(f'[{split}] {describe(survey_of(self.args.benchmark), self.args.fold)} '
+              f'| episode targets = {dataset.class_ids}')
 
     def train_dataloader(self):
         # Training episodes are 1-shot; with SSSN a pool of candidates is fetched and filtered to the top-k
