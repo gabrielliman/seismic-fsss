@@ -72,6 +72,19 @@ Outputs: `$LOGROOT/<dataset>_<partition>/fold<k>/<method>_<mode>/{best_model.ckp
 the reference evals go to `$LOGROOT/reference/...`. `collect_results.py` writes `novel_class_tables.md` (fold columns, Mean,
 Ref, Gap = Ref − Mean) and a long-format CSV.
 
+### Tables for the paper
+
+The same command writes ready-to-`\input` LaTeX tables (booktabs; needs `\usepackage{booktabs,multirow,graphicx}`):
+
+| File | Content | Where in the paper |
+|---|---|---|
+| `table_novel_main_<survey>.tex` | Same layout as Tables 2–3 (Shot × Model, LRP / EDS (5 Slices) × A / SS / SSSN, `Macro F1\|mIoU`, best per column in bold); each cell is the mean over folds | Main text, next to Tables 2–3 |
+| `table_novel_gap_<survey>.tex` | mIoU Seen (Tables 2–3 models) vs Novel on identical episodes, and Δ = Novel − Seen | Main text: the cost of class novelty |
+| `table_novel_folds_<survey>.tex` | Per-fold mIoU with the held-out facies listed in the caption | Appendix / supplementary |
+
+Cells of runs that have not finished yet are `--`, so the tables can be regenerated as the tiers complete.
+Labels: `tab:novel_<survey>`, `tab:novel_gap_<survey>`, `tab:novel_folds_<survey>`.
+
 Single run by hand:
 
 ```bash
