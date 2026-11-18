@@ -5,7 +5,6 @@
 # Submit through submit.sh reference.
 #SBATCH --job-name=fsss_ref
 #SBATCH --partition=medusas_shr
-#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=08:00:00
 #SBATCH --mail-type=END,FAIL
@@ -15,6 +14,7 @@ set -euo pipefail
 : "${MANIFEST:?set by submit.sh}" "${CODE_DIR:?set by submit.sh}"
 source "$CODE_DIR/scripts/novel_class/config.sh"
 activate_env
+pick_gpu
 cd "$CODE_DIR"
 
 # Directory names of the original paper runs (from the ifsl/fs-cs SLURM files).

@@ -40,3 +40,18 @@ bench_args() {
 manifest_line() {
     awk -v n=$(( $2 + 2 )) 'NR == n' "$1"
 }
+
+# pick_gpu: on partitions without GPU GRES (e.g. gorgonas), SLURM does not set CUDA_VISIBLE_DEVICES, and the
+# trainer would use every GPU of the node. Pin the job to the single GPU with the least memory in use.
+pick_gpu() {
+    if [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then
+        echo "GPU assigned by SLURM: $CUDA_VISIBLE_DEVICES"
+        return 0
+    fi
+    # small random delay so array tasks starting together on one node do not all pick the same GPU
+    sleep $(( RANDOM % 60 ))
+    export CUDA_VISIBLE_DEVICES=$(nvidia-smi --query-gpu=index,memory.used --format=csv,noheader,nounits \
+        | sort -t, -k2 -n | head -1 | cut -d, -f1)
+    echo "no GPU GRES: using least-used GPU $CUDA_VISIBLE_DEVICES on $(hostname)"
+    nvidia-smi --query-gpu=index,name,memory.used,memory.total --format=csv
+}
