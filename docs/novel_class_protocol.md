@@ -55,6 +55,12 @@ Each task asks for 48 h and resumes from `last.ckpt` if resubmitted after a time
 
 ## How to run
 
+Once, on the login node, cache the ImageNet weights on the shared filesystem (`TORCH_HOME` in `config.sh`):
+
+```bash
+TORCH_HOME=/sonic_home/nuneslima/.cache/torch python -c "import torchvision; torchvision.models.resnet101(weights='IMAGENET1K_V1'); torchvision.models.resnet50(weights='IMAGENET1K_V1')"
+```
+
 ```bash
 # on the cluster, in a clone of this branch
 git checkout novel-class-folds

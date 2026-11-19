@@ -17,6 +17,12 @@
 # Classes used for validation / best-checkpoint selection (see docs/novel_class_protocol.md)
 : "${VAL_CLASSES:=base}"
 
+# ImageNet backbone weights: keep torchvision's cache on the shared filesystem. The default (~/.cache/torch)
+# is the node's home directory, which can be full (gorgona7: "No space left on device"). Download them once
+# on the login node so array tasks do not all download at the same time (see docs/novel_class_protocol.md).
+: "${TORCH_HOME:=/sonic_home/nuneslima/.cache/torch}"
+export TORCH_HOME
+
 # Python environment
 : "${CONDA_ENV:=/sonic_home/nuneslima/envs/ifsl}"
 activate_env() {
