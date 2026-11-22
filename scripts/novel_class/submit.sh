@@ -8,6 +8,7 @@
 # GPU request: GRES (default gpu:1). For partitions without GPU GRES, e.g. gorgonas:
 #   GRES= SBATCH_EXTRA="--partition=gorgonas" MAX_PARALLEL=3 bash scripts/novel_class/submit.sh tier1
 # The job then pins itself to the least-used GPU of the node (pick_gpu in config.sh).
+# E-mail: set MAIL_USER (e.g. in ~/.bashrc) to get one e-mail per task when it ends, fails or times out.
 set -euo pipefail
 
 tier=${1:?usage: submit.sh <tier1|tier2|tier3|reference> [array range]}
@@ -25,7 +26,9 @@ mkdir -p "$CODE_DIR/slurm_logs"
 GRES=${GRES-gpu:1}
 gres=()
 [ -n "$GRES" ] && gres=(--gres="$GRES")
-cmd=(sbatch --array="${range}%${MAX_PARALLEL}" "${gres[@]}" --export=ALL,MANIFEST="$MANIFEST",CODE_DIR="$CODE_DIR"
+mail=()
+[ -n "${MAIL_USER:-}" ] && mail=(--mail-user="$MAIL_USER" --mail-type=END,FAIL,TIME_LIMIT,ARRAY_TASKS)
+cmd=(sbatch --array="${range}%${MAX_PARALLEL}" "${gres[@]}" "${mail[@]}" --export=ALL,MANIFEST="$MANIFEST",CODE_DIR="$CODE_DIR"
      ${SBATCH_EXTRA:-} --chdir="$CODE_DIR" "$CODE_DIR/scripts/novel_class/$script")
 
 echo "$tier: $ntasks tasks in $MANIFEST, submitting array $range"
