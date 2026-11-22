@@ -13,7 +13,7 @@
 set -euo pipefail
 : "${MANIFEST:?set by submit.sh}" "${CODE_DIR:?set by submit.sh}"
 source "$CODE_DIR/scripts/novel_class/config.sh"
-activate_env
+activate_env || give_up "python environment $CONDA_ENV not usable on $(hostname)"
 pick_gpu
 cd "$CODE_DIR"
 

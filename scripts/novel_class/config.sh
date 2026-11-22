@@ -27,9 +27,17 @@ export TORCH_HOME
 : "${CONDA_ENV:=/sonic_home/nuneslima/envs/ifsl}"
 activate_env() {
     [ -n "${SKIP_ENV_ACTIVATION:-}" ] && return 0   # environment already active (local runs)
-    source /etc/profile.d/modules.sh
-    module load anaconda3.2023.09-0
-    conda activate "$CONDA_ENV"
+    source /etc/profile.d/modules.sh 2>/dev/null
+    module load anaconda3.2023.09-0 2>/dev/null
+    # "conda activate" needs conda's shell hook, which batch shells do not load (job 91900 failed on it).
+    # Use the hook when it works; in any case put the environment first on PATH, which is all the jobs need.
+    eval "$(conda shell.bash hook 2>/dev/null)" 2>/dev/null && conda activate "$CONDA_ENV" 2>/dev/null
+    export PATH="$CONDA_ENV/bin:$PATH" CONDA_PREFIX="$CONDA_ENV"
+    if ! python -c "import torch, pytorch_lightning" 2>/dev/null; then
+        echo "environment $CONDA_ENV is not usable (python: $(command -v python))"
+        return 1
+    fi
+    echo "python: $(command -v python)"
 }
 
 # bench_args <dataset> <partition>  ->  main.py arguments selecting the partition
