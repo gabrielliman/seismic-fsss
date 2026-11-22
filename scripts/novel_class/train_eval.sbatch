@@ -20,23 +20,39 @@ cd "$CODE_DIR"
 read -r dataset partition mode method fold <<< "$(manifest_line "$MANIFEST" "$SLURM_ARRAY_TASK_ID")"
 bench=$(bench_args "$dataset" "$partition")
 run="$LOGROOT/${dataset}_${partition}/fold${fold}/${method}_${mode}"
-mkdir -p "$run"
+timeout 120 mkdir -p "$run" && timeout 60 touch "$run/.write_test" && rm -f "$run/.write_test" \
+    || give_up "cannot write to $run (filesystem unavailable?)"
 common=(--datapath "$DATAPATH" $bench --method "$method" --support_mode "$mode"
         --fold "$fold" --val_classes "$VAL_CLASSES" --logpath "$run")
 echo "task $SLURM_ARRAY_TASK_ID: $dataset $partition $mode $method fold=$fold -> $run"
 
-# 1) Training on base classes (skipped when already finished; resumed from last.ckpt after a timeout)
-if [ ! -f "$run/TRAINED" ]; then
+# 1) Training on base classes. Skipped when already finished. A crash or a stall (watchdog) is retried
+#    up to MAX_ATTEMPTS times, resuming from last.ckpt; see run_watched in config.sh.
+attempt=1
+while [ ! -f "$run/TRAINED" ]; do
     resume=()
     [ -f "$run/last.ckpt" ] && resume=(--resume)
-    python main.py "${common[@]}" --niter "$NITER" "${resume[@]}" >> "$run/train.log" 2>&1
-    touch "$run/TRAINED"
-fi
+    echo "$(date '+%F %T') training attempt $attempt/$MAX_ATTEMPTS ${resume[*]}"
+    rc=0
+    run_watched "$run/train.log" python main.py "${common[@]}" --niter "$NITER" "${resume[@]}" || rc=$?
+    if [ "$rc" -eq 0 ]; then
+        touch "$run/TRAINED"
+        break
+    fi
+    echo "$(date '+%F %T') training attempt $attempt failed (exit $rc); last lines of train.log:"
+    timeout 30 tail -c 3000 "$run/train.log" | tr '\r' '\n' | grep -av '^\s*$' | tail -4
+    [ "$attempt" -ge "$MAX_ATTEMPTS" ] && give_up "training failed $attempt times (task $SLURM_ARRAY_TASK_ID, $run)"
+    attempt=$((attempt + 1))
+    sleep "$RETRY_WAIT_SEC"
+done
 
-# 2) Evaluation on the novel classes of the fold (1,000 fixed episodes per shot setting)
+# 2) Evaluation on the novel classes of the fold (1,000 fixed episodes per shot setting), same protection
 for shot in $SHOTS; do
     out="$run/eval_novel_${shot}shot.txt"
-    grep -q "test/miou" "$out" 2>/dev/null && continue
-    python main.py "${common[@]}" --shot "$shot" --eval > "$out" 2>&1
-    grep "test/miou\|test/seg_macro_f1" "$out"
+    for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+        grep -q "test/miou" "$out" 2>/dev/null && break
+        rm -f "$out"
+        run_watched "$out" python main.py "${common[@]}" --shot "$shot" --eval || sleep "$RETRY_WAIT_SEC"
+    done
+    grep "test/miou\|test/seg_macro_f1" "$out" || give_up "${shot}-shot evaluation failed $MAX_ATTEMPTS times ($out)"
 done

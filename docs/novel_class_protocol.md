@@ -99,6 +99,19 @@ python main.py --datapath $DATAPATH --benchmark parihaka_eds --eds_slices 5 --me
 python main.py ... --fold 0 --shot 5 --eval
 ```
 
+## Failures and notifications
+
+Each job guards against the transient `/snfs2` failures seen in the first runs (`OSError: [Errno 121] Remote I/O
+error`, after which the process hung until the time limit):
+
+* **Watchdog:** a run whose log is not written for 45 min (`STALL_SEC`) is killed, including its data-loader workers.
+* **Retries:** a crashed or stalled run is retried up to `MAX_ATTEMPTS=3` times, 5 min apart (`RETRY_WAIT_SEC`),
+  resuming from `last.ckpt`.
+* **Give up:** after the last attempt, or if the output folder cannot be written at startup, the task ends as FAILED
+  (FAIL e-mail when `MAIL_USER` is set) and **holds the rest of its array**, so pending tasks do not start and fail
+  while the filesystem is down. Release them with `scontrol release <array job id>`.
+* `bash scripts/novel_class/status.sh [tier]` shows, per task, the results on disk and the last SLURM state.
+
 ## Caveats to check before submitting `reference`
 
 * `PAPER_LAYOUT=legacy` maps to the original `/snfs2/nunes/logs_fs_cs*` directories. Penobscot EDS5 SSSN exists in both

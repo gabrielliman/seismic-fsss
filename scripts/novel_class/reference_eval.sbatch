@@ -37,7 +37,7 @@ else
     ckpt="$PAPER_LOGDIR/${dataset}_${partition}/${method}_${mode}"
 fi
 out_dir="$LOGROOT/reference/${dataset}_${partition}/fold${fold}/${method}_${mode}"
-mkdir -p "$out_dir"
+timeout 120 mkdir -p "$out_dir" || give_up "cannot write to $out_dir (filesystem unavailable?)"
 echo "$ckpt" > "$out_dir/CHECKPOINT_SOURCE"
 echo "task $SLURM_ARRAY_TASK_ID: $dataset $partition $mode $method fold=$fold <- $ckpt"
 
@@ -48,8 +48,11 @@ backbone=resnet101
 
 for shot in $SHOTS; do
     out="$out_dir/eval_novel_${shot}shot.txt"
-    grep -q "test/miou" "$out" 2>/dev/null && continue
-    python main.py --datapath "$DATAPATH" $bench --method "$method" --support_mode "$mode" \
-        --fold "$fold" --backbone "$backbone" --logpath "$ckpt" --shot "$shot" --eval > "$out" 2>&1
-    grep "test/miou\|test/seg_macro_f1" "$out"
+    for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+        grep -q "test/miou" "$out" 2>/dev/null && break
+        rm -f "$out"
+        run_watched "$out" python main.py --datapath "$DATAPATH" $bench --method "$method" --support_mode "$mode" \
+            --fold "$fold" --backbone "$backbone" --logpath "$ckpt" --shot "$shot" --eval || sleep "$RETRY_WAIT_SEC"
+    done
+    grep "test/miou\|test/seg_macro_f1" "$out" || give_up "${shot}-shot reference evaluation failed $MAX_ATTEMPTS times ($out)"
 done

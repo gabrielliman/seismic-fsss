@@ -61,3 +61,48 @@ pick_gpu() {
     echo "no GPU GRES: using least-used GPU $CUDA_VISIBLE_DEVICES on $(hostname)"
     nvidia-smi --query-gpu=index,name,memory.used,memory.total --format=csv
 }
+
+# ---------------------------------------------------------------------------------------------------
+# Robustness against transient /snfs2 failures (observed: "OSError: [Errno 121] Remote I/O error" while
+# writing train.log, after which the Python process hung until the SLURM time limit).
+: "${MAX_ATTEMPTS:=3}"     # attempts per job; each retry resumes from last.ckpt. Outages of /snfs2 can last
+                           # hours, so only brief errors are retried; after that the job stops (see give_up)
+: "${STALL_SEC:=2700}"     # kill a run whose log has not been written for this long (45 min)
+: "${POLL_SEC:=60}"        # watchdog check interval
+: "${RETRY_WAIT_SEC:=300}" # pause before retrying
+
+# give_up <message>: stop this task and keep the rest of the array from starting (and failing) while the
+# problem lasts. The pending tasks are held, not cancelled; release them with
+#   scontrol release <array job id>
+# The task ends as FAILED, so SLURM sends the FAIL e-mail when MAIL_USER was set at submission.
+give_up() {
+    echo "$(date '+%F %T') GIVING UP: $*"
+    if [ -n "${SLURM_ARRAY_JOB_ID:-}" ]; then
+        scontrol hold "$SLURM_ARRAY_JOB_ID" 2>&1 | grep -v "already held\|Job is no longer pending" || true
+        echo "pending tasks of array $SLURM_ARRAY_JOB_ID are on hold; when the problem is fixed run:"
+        echo "    scontrol release $SLURM_ARRAY_JOB_ID"
+    fi
+    exit 1
+}
+
+# run_watched <log file> <command...>: append the command's output to the log; kill the whole process
+# group (including data-loader workers) if the log stops changing for STALL_SEC. Returns the command's
+# exit code, or 124 when it was killed by the watchdog.
+run_watched() {
+    local log=$1; shift
+    setsid "$@" >> "$log" 2>&1 &
+    local pid=$! now mtime
+    while kill -0 "$pid" 2>/dev/null; do
+        sleep "$POLL_SEC"
+        kill -0 "$pid" 2>/dev/null || break
+        now=$(date +%s)
+        mtime=$(timeout 30 stat -c %Y "$log" 2>/dev/null || echo 0)   # a hung filesystem counts as stale
+        if (( now - mtime > STALL_SEC )); then
+            echo "$(date '+%F %T') watchdog: no output in $log for $((now - mtime)) s, killing pid $pid"
+            kill -TERM -- "-$pid" 2>/dev/null; sleep 30; kill -KILL -- "-$pid" 2>/dev/null
+            wait "$pid" 2>/dev/null
+            return 124
+        fi
+    done
+    wait "$pid"
+}
