@@ -9,6 +9,13 @@ source "$CODE_DIR/scripts/novel_class/config.sh"
 MANIFEST="$CODE_DIR/scripts/novel_class/manifests/$tier.tsv"
 name=fsss_novel; [ "$tier" = reference ] && name=fsss_ref
 
+# Every file access goes through a timeout: a hung network filesystem must not freeze the report.
+if ! timeout 20 ls "$LOGROOT" > /dev/null 2>&1; then
+    echo "!! $LOGROOT does not respond within 20 s (filesystem hung or unreachable)."
+    echo "!! Results cannot be read; only the SLURM state is shown. Check: timeout 15 df -h $LOGROOT"
+    FS_DOWN=1
+fi
+
 echo "== Queue (yours)"
 squeue -u "$USER" -o "%.18i %.10P %.10j %.2t %.10M %R" 2>/dev/null
 echo
@@ -25,8 +32,10 @@ done_n=0; total=0; failed=()
 while read -r i ds part mode m f; do
     total=$((total+1))
     if [ "$tier" = reference ]; then d=$LOGROOT/reference/${ds}_${part}/fold$f/${m}_$mode; else d=$LOGROOT/${ds}_${part}/fold$f/${m}_$mode; fi
-    if grep -q test/miou "$d/eval_novel_5shot.txt" 2>/dev/null; then r=DONE; done_n=$((done_n+1))
-    elif [ -f "$d/last.ckpt" ]; then r="partial ($(grep -ao 'ep: *[0-9]*' "$d/train.log" 2>/dev/null | tail -1))"
+    if [ -n "${FS_DOWN:-}" ]; then r="? (filesystem down)"
+    elif timeout 10 grep -q test/miou "$d/eval_novel_5shot.txt" 2>/dev/null; then r=DONE; done_n=$((done_n+1))
+    elif timeout 10 test -f "$d/last.ckpt"; then
+        r="partial ($(timeout 30 tail -c 200000 "$d/train.log" 2>/dev/null | grep -ao 'ep: *[0-9]*' | tail -1))"
     else r="not started"; fi
     s=${st[$i]:-"-"}
     printf '%-3s %-9s %-5s %-10s %-6s %-5s %-24s %s\n' "$i" "$ds" "$part" "$mode" "$m" "$f" "$r" "$s"
@@ -40,6 +49,6 @@ if [ ${#failed[@]} -gt 0 ]; then
     echo "== Not done and last SLURM run ended badly: $list"
     echo "   last error lines of the first one:"
     i=${failed[0]}; read -r ds part mode m f <<< "$(manifest_line "$MANIFEST" "$i")"
-    tail -3 "$LOGROOT/${ds}_${part}/fold$f/${m}_$mode/train.log" 2>/dev/null | sed 's/^/   /'
+    timeout 10 tail -3 "$LOGROOT/${ds}_${part}/fold$f/${m}_$mode/train.log" 2>/dev/null | sed 's/^/   /'
     echo "   resubmit with: GRES= SBATCH_EXTRA=\"--partition=gorgonas\" MAX_PARALLEL=3 bash scripts/novel_class/submit.sh $tier $list"
 fi
